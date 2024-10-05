@@ -1,3 +1,6 @@
+//! كي ترى التعليقات بشكل أفضل قم بتحميل الإضافة التي تسمى
+//! Better Comments
+
 const express = require("express");
 const app = express();
 const port = 3000;
@@ -23,6 +26,23 @@ function writeDataToFile(data, callback) {
   });
 }
 
+// Function to read from id.json to get the last used id
+function readIdFromFile(callback) {
+  fs.readFile("id.json", "utf-8", (err, data) => {
+    if (err) {
+      console.log(err);
+    }
+    callback(JSON.parse(data));
+  });
+}
+
+// Function to write to id.json to update the last used id
+function writeIdToFile(lastId, callback) {
+  fs.writeFile("id.json", JSON.stringify({ lastId }, null, 2), "utf-8", (err) => {
+    callback(err);
+  });
+}
+
 ////* Routes *\\\\
 
 ////! GET !\\\\
@@ -44,31 +64,41 @@ app.post("/api/users", (req, res) => {
     });
   }
 
-  readDataFromFile((dataReadFromFile) => {
-    let data = req.body;
+  readIdFromFile((idData) => {
+    let lastId = idData.lastId;
 
-    //? this is to calculate the current date
-    let currentDate = new Date()
-      .toLocaleString("en-CA", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      })
-      .replace(",", "");
+    readDataFromFile((dataReadFromFile) => {
+      let data = req.body;
 
-    //? adding the current date and id to the new item
-    let newData = { ...data, date: currentDate, id: Date.now() };
+      //? this is to calculate the current date
+      let currentDate = new Date()
+        .toLocaleString("en-CA", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        })
+        .replace(",", "");
 
-    //? pushing the new object to the current data that read from data.json file
-    dataReadFromFile.push(newData);
+      //? Increment lastId for the new data
+      let newId = lastId + 1;
 
-    //? writing the new data to data.json file
-    writeDataToFile(dataReadFromFile, () => {
-      res.send({ message: "Data saved successfully" });
+      //? adding the current date and id to the new item
+      let newData = { ...data, date: currentDate, id: newId };
+
+      //? pushing the new object to the current data that read from data.json file
+      dataReadFromFile.push(newData);
+
+      //? writing the new data to data.json file
+      writeDataToFile(dataReadFromFile, () => {
+        //? Update the lastId in id.json
+        writeIdToFile(newId, () => {
+          res.send({ message: "Data saved successfully" });
+        });
+      });
     });
   });
 });
@@ -94,7 +124,7 @@ app.put("/api/users/:id", (req, res) => {
     //? modifying the data
     dataReadFromFile[index].title = title || dataReadFromFile[index].title  
     dataReadFromFile[index].description = description || dataReadFromFile[index].description  
-    dataReadFromFile[index].username = username.trim() || dataReadFromFile[index].username
+    dataReadFromFile[index].username = username? username.trim() : dataReadFromFile[index].username
     
     //? writing the new data to data.json file
     writeDataToFile(dataReadFromFile, () => {
